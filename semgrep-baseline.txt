@@ -1,0 +1,25 @@
+                   
+                   
+┌─────────────────┐
+│ 2 Code Findings │
+└─────────────────┘
+                                     
+  [36m[22m[24m  docker-compose.yml[0m
+    ❯❱ yaml.docker-compose.security.no-new-privileges.no-new-privileges
+          [31m[1m[24m❰❰ Blocking ❱❱[0m
+          Service 'juiceshop' allows for privilege escalation via setuid or setgid binaries. Add 'no-new-
+          privileges:true' in 'security_opt' to prevent this.                                            
+          Details: https://sg.run/0n8q                                                                   
+                                                                                                         
+            4┆ juiceshop:
+   
+    ❯❱ yaml.docker-compose.security.writable-filesystem-service.writable-filesystem-service
+          [31m[1m[24m❰❰ Blocking ❱❱[0m
+          Service 'juiceshop' is running with a writable root filesystem. This may allow malicious          
+          applications to download and run additional payloads, or modify container files. If an application
+          inside a container has to save something temporarily consider using a tmpfs. Add 'read_only: true'
+          to this service to prevent this.                                                                  
+          Details: https://sg.run/e4JE                                                                      
+                                                                                                            
+            4┆ juiceshop:
+
