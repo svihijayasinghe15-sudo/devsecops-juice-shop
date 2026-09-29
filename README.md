@@ -29,12 +29,12 @@ Request a restricted system backup file directly: http://localhost:3000/ftp/pack
 The endpoint triggers a 403 Forbidden exception and leaks internal stack traces containing server file paths and environment details.
 
 
-[Screenshot 1: Browser displaying 403 Error with leaked internal stack traces]:(C:\Users\User\Documents\GitHub\devsecops-juice-shop\screenshots\Screenshot (19).png)
+![Screenshot 1: Browser displaying 403 Error with leaked internal stack traces](./screenshots/Screenshot%20(19).png)
 
-[Insert Screenshot 2: Browser displaying directory listing at /ftp]:(C:\Users\User\Documents\GitHub\devsecops-juice-shop\screenshots\Screenshot (20).png)
+![Screenshot 2: Browser displaying directory listing at /ftp](./screenshots/Screenshot%20(20).png)
 
+![Screenshot 3: VS Code showing vulnerable code in routes/fileServer.ts](./screenshots/Screenshot%20(21).png)
 
-[Insert Screenshot 3: VS Code showing vulnerable code in routes/fileServer.ts]:(C:\Users\User\Documents\GitHub\devsecops-juice-shop\screenshots\Screenshot (21).png / C:\Users\User\Documents\GitHub\devsecops-juice-shop\screenshots\Screenshot (25).png)
 
 3. Remediation & Code Patch
 Vulnerable Implementation (Before):
@@ -127,8 +127,12 @@ Manual Exploit Verification: Requesting http://localhost:3000/ftp/package.json.b
 
 SAST Scanning (Semgrep): Re-running docker run --rm -v "${PWD}:/src" returntocorp/semgrep semgrep scan --config auto scanned the modified repository. While static heuristic rules flag res.sendFile() and path.resolve() sink patterns (SAST False Positives), input sanitization prior to validation guarantees runtime path safety.
 
-[Screenshot 4: Terminal output showing Semgrep SAST scan execution]:(C:\Users\User\Documents\GitHub\devsecops-juice-shop\screenshots\Screenshot (26).png / C:\Users\User\Documents\GitHub\devsecops-juice-shop\screenshots\Screenshot (27).png / 
-C:\Users\User\Documents\GitHub\devsecops-juice-shop\screenshots\Screenshot (28).png )
-but u said this 
+**[Screenshot 4: Terminal output showing Semgrep SAST scan execution]**
+![Semgrep Part 1](screenshots/Screenshot%20(26).png)
+![Semgrep Part 2](screenshots/Screenshot%20(27).png)
+![Semgrep Part 3](screenshots/Screenshot%20(28).png)
 
-[Screenshot 5: Browser displaying clean 403 error page after remediation]: (C:\Users\User\Documents\GitHub\devsecops-juice-shop\screenshots\Screenshot (29).png / C:\Users\User\Documents\GitHub\devsecops-juice-shop\screenshots\Screenshot (30).png)
+
+**[Screenshot 5: Browser displaying clean 403 error page after remediation]**
+![Remediation Part 1](screenshots/Screenshot%20(29).png)
+![Remediation Part 2](screenshots/Screenshot%20(30).png)
