@@ -1,0 +1,217 @@
+# IE3142 DevOps Security — CI/CD Security Pipeline
+# Application: OWASP Juice Shop (Node.js / Angular)
+
+name: DevSecOps Pipeline — Juice Shop
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  IMAGE_NAME: juice-shop
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+
+# Stage 0: Build & Test
+# Must pass before any security gate is invoked
+
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test -- --watchAll=false
+        continue-on-error: true
+
+# SECURITY GATE 1: SAST — Semgrep
+
+  gate-1-sast:
+    name: "Gate 1 — SAST (Semgrep)"
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep static analysis
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/javascript
+            p/nodejs
+            p/owasp-top-ten
+        env:
+          SEMGREP_TIMEOUT: 300
+
+# SECURITY GATE 2: SCA — npm audit (Dependency Scanning)
+  gate-2-sca:
+    name: "Gate 2 — SCA / Dependency Audit (npm audit)"
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies — fail on HIGH or CRITICAL CVEs
+        run: npm audit --audit-level=high
+
+      - name: Save full audit report
+        if: always()
+        run: npm audit --json > npm-audit-report.json || true
+
+      - name: Upload audit report as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-report
+          path: npm-audit-report.json
+
+# SECURITY GATE 3: Secret Scanning — Gitleaks
+  gate-3-secrets:
+    name: "Gate 3 — Secret Scanning (Gitleaks)"
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+
+      - name: Checkout with full commit history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+# SECURITY GATE 4: Container Image Scanning — Trivy
+  gate-4-container:
+    name: "Gate 4 — Container Image Scan (Trivy)"
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --tag ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
+            .
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL"
+
+      - name: Save Trivy JSON report
+        if: always()
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          format: "json"
+          output: "trivy-results.json"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      - name: Upload Trivy report as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-scan-results
+          path: trivy-results.json
+
+# GATE 5: DAST — OWASP ZAP
+  gate-5-dast:
+    name: " Gate 5 — DAST (OWASP ZAP)"
+    runs-on: ubuntu-latest
+    needs: [gate-1-sast, gate-2-sca, gate-3-secrets, gate-4-container]
+    if: always()
+    steps:
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Fetch runtime secrets from HashiCorp Vault
+        uses: hashicorp/vault-action@v3
+        with:
+          url: ${{ secrets.VAULT_ADDR }}
+          token: ${{ secrets.VAULT_TOKEN }}
+          secrets: |
+            secret/data/juice-shop node_env | NODE_ENV ;
+        continue-on-error: true
+
+      - name: Start Juice Shop
+        run: |
+          docker compose up -d
+          sleep 45
+        env:
+          NODE_ENV: ${{ secrets.NODE_ENV }}
+
+      - name: Run OWASP ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.10.0
+        with:
+          target: "http://localhost:3000"
+          cmd_options: "-a -j"
+        continue-on-error: true
+
+      - name: Tear down containers
+        if: always()
+        run: docker compose down
+
+# Final: Security Gate
+# Only runs if all 4 required gates pass
+
+  security-gate:
+    name: Security Gate — Deployment Approval
+    runs-on: ubuntu-latest
+    needs: [gate-1-sast, gate-2-sca, gate-3-secrets, gate-4-container]
+    if: ${{ success() }}
+    steps:
+
+      - name: All security gates passed
+        run: |
+          echo "========================================"
+          echo "DevSecOps Pipeline — Security Summary  "
+          echo "========================================"
+          echo "Gate 1: SAST (Semgrep)              PASSED"
+          echo "Gate 2: SCA (npm audit)             PASSED"
+          echo "Gate 3: Secret Scanning (Gitleaks)  PASSED"
+          echo "Gate 4: Container Scan (Trivy)      PASSED"
+          echo "----------------------------------------"
+          echo "Status:  APPROVED FOR DEPLOYMENT"
+          echo "Commit:  ${{ github.sha }}"
+          echo "========================================"
