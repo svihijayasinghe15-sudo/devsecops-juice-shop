@@ -14,7 +14,7 @@ A DevSecOps pipeline built around OWASP Juice Shop (Node.js / Angular).
 1. Clone the repo:
 
 ```bash
-git clone <YOUR_REPO_LINK>
+git clone https://github.com/svihijayasinghe15-sudo/devsecops-juice-shop.git
 cd devsecops-juice-shop
 ```
 
