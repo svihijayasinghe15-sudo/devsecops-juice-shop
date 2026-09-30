@@ -1,0 +1,9 @@
+[allowlist]
+paths = [
+  '''ctf\.key''',
+  '''encryptionkeys/.*''',
+  '''data/static/.*''',
+  '''frontend/.*''',
+  '''test/.*''',
+  '''config/.*'''
+]
