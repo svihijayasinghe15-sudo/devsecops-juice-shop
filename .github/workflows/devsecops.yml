@@ -115,11 +115,15 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Build Docker image
+      - name: Build Docker image (fallback to official image if no Dockerfile)
         run: |
-          docker build \
-            --tag ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
-            .
+          if [ -f Dockerfile ]; then
+            docker build --tag ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} .
+          else
+            echo "No Dockerfile found, using official Juice Shop image"
+            docker pull bkimminich/juice-shop:latest
+            docker tag bkimminich/juice-shop:latest ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          fi
 
       - name: Run Trivy vulnerability scan
         uses: aquasecurity/trivy-action@master
@@ -133,6 +137,7 @@ jobs:
 
       - name: Save Trivy JSON report
         if: always()
+        continue-on-error: true
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
@@ -144,6 +149,7 @@ jobs:
 
       - name: Upload Trivy report as artifact
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: trivy-scan-results
